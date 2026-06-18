@@ -45,27 +45,38 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 builder.Host.UseSerilog();
 
-// 2. Chuỗi kết nối SQL Server
+// 2. Chuỗi kết nối SQL Server (dev) / PostgreSQL (production)
 string connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Server=localhost;Database=OperaIQDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;";
+
+// Helper: chuyển postgresql://user:pass@host/db → Npgsql connection string
+static string ParsePostgresUrl(string url)
+{
+    var uri = new Uri(url);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    var host = uri.Host;
+    var port = uri.Port > 0 ? uri.Port : 5432;
+    var database = uri.AbsolutePath.TrimStart('/');
+    var username = userInfo[0];
+    var password = userInfo.Length > 1 ? userInfo[1] : string.Empty;
+    // Render internal URLs không cần SSL; external URLs cần SSL Mode=Require
+    var sslMode = host.EndsWith(".render.com") || !host.Contains(".") ? "Prefer" : "Require";
+    return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true";
+}
+
+string? pgDatabaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+string npgsqlConnectionString = !string.IsNullOrEmpty(pgDatabaseUrl)
+    ? ParsePostgresUrl(pgDatabaseUrl)
+    : string.Empty;
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     if (builder.Environment.IsProduction())
     {
-        // Railway provides DATABASE_URL in the format postgres://user:password@host:port/database
-        var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
-        if (!string.IsNullOrEmpty(databaseUrl))
-        {
-            var pgBuilder = new Npgsql.NpgsqlConnectionStringBuilder(databaseUrl);
-            var npgsqlConnStr = pgBuilder.ToString();
-            options.UseNpgsql(npgsqlConnStr, b => b.MigrationsAssembly("OperaIQ.Infrastructure"));
-        }
-        else
-        {
-            // Fallback to default connection string if env var missing
-            options.UseNpgsql(connectionString, b => b.MigrationsAssembly("OperaIQ.Infrastructure"));
-        }
+        var connStr = !string.IsNullOrEmpty(npgsqlConnectionString)
+            ? npgsqlConnectionString
+            : connectionString;  // fallback
+        options.UseNpgsql(connStr, b => b.MigrationsAssembly("OperaIQ.Infrastructure"));
     }
     else
     {
@@ -194,12 +205,14 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSignalR();
 
 // 9. Hangfire (Background Jobs)
-// Dùng PostgreSQL khi Production (Fly.io + Supabase), SQL Server khi Development
+// Dùng PostgreSQL khi Production, SQL Server khi Development
 if (builder.Environment.IsProduction())
 {
-    var pgHangfireUrl = Environment.GetEnvironmentVariable("DATABASE_URL") ?? connectionString;
+    var hangfireConnStr = !string.IsNullOrEmpty(npgsqlConnectionString)
+        ? npgsqlConnectionString
+        : connectionString;
     builder.Services.AddHangfire(config =>
-        config.UsePostgreSqlStorage(options => options.UseNpgsqlConnection(pgHangfireUrl)));
+        config.UsePostgreSqlStorage(options => options.UseNpgsqlConnection(hangfireConnStr)));
 }
 else
 {
