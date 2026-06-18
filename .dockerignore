@@ -1,0 +1,17 @@
+**/.git
+**/.gitignore
+**/obj
+**/bin
+**/.vs
+**/*.user
+**/node_modules
+**/dist
+operaiq.client/
+*.md
+**/.firebase
+firebase.json
+.firebaserc
+deploy-azure.ps1
+run-all.ps1
+seed-data.ps1
+**/Logs

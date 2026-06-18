@@ -1,0 +1,6 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./operaiq.client" }
+  ]
+}

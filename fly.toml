@@ -1,0 +1,41 @@
+# fly.toml – OperaIQ Backend on Fly.io
+# Chạy lệnh: fly launch --name operaiq --no-deploy
+# rồi: fly deploy
+
+app = "operaiq"
+primary_region = "sin"    # Singapore – gần Việt Nam nhất
+
+[build]
+  # Dùng Dockerfile ở root của repo
+  dockerfile = "Dockerfile"
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS         = "http://+:8080"
+
+[http_service]
+  internal_port        = 8080
+  force_https          = true
+  auto_stop_machines   = "off"      # ← 24/7: không tắt khi không có traffic
+  auto_start_machines  = true
+  min_machines_running = 1          # luôn giữ ít nhất 1 máy chạy
+
+  [http_service.concurrency]
+    type       = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  size   = "shared-cpu-1x"   # free tier (256 MB RAM)
+  memory = "256mb"
+  cpus   = 1
+
+[checks]
+  [checks.health]
+    grace_period = "30s"
+    interval     = "30s"
+    method       = "GET"
+    path         = "/api/health"
+    protocol     = "http"
+    timeout      = "10s"
+    type         = "http"

@@ -1,0 +1,14 @@
+{
+  "hosting": {
+    "public": "operaiq.client/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      { "source": "/api/**", "destination": "https://operaiq-backend.up.railway.app/api/**" },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  }
+}
